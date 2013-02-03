@@ -1,0 +1,7 @@
+%% -*- mode: erlang -*-
+
+{application, jdt,
+ [{description, "json object data type"},
+  {vsn, git},
+  {id, "jdt"},
+  {applications, [kernel, stdlib]}]}.
