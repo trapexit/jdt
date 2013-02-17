@@ -21,6 +21,7 @@
          get/3,get/2,
          find/2,
          mask/2,mask/3,
+         fmask/2,fmask/3,
          fold/3
         ]).
 
@@ -141,6 +142,17 @@ mask(_,_,_) ->
 -spec mask([path()],object()) -> object().
 mask(Path,Source) ->
     mask(Path,Source,new()).
+
+-spec fmask(fpath(),object(),object()) -> object().
+fmask(Path,Source,Target)
+  when is_list(Path) ->
+    '_fmask'(Path,[],Source,Target);
+fmask(_,_,_) ->
+    erlang:error(badarg).
+
+-spec fmask(fpath(),object()) -> object().
+fmask(Path,Source) ->
+    fmask(Path,Source,new()).
 
 -spec fold(fun((_,_,_) -> any()),any(),object()) -> any().
 fold(Fun,Acc,{Proplist})
@@ -342,6 +354,42 @@ getnth(_N,_L) ->
 '_mask'([_|Paths],Source,Target) ->
     '_mask'(Paths,Source,Target);
 '_mask'([],_Source,Target) ->
+    Target.
+
+-spec '_fmask'(fpath(),list(),_,_) -> object().
+'_fmask'([Key|Path],RevPath,{Source},Target)
+  when is_binary(Key),is_list(Source) ->
+    case lists:keyfind(Key,1,Source) of
+        {_,Value} ->
+            '_fmask'(Path,[Key|RevPath],Value,Target);
+        false ->
+            Target
+    end;
+'_fmask'([Key|Path],RevPath,Source,Target)
+  when is_integer(Key),is_list(Source) ->
+    case getnth(Key,Source) of
+        undefined ->
+            Target;
+        Value ->
+            '_fmask'(Path,[Key|RevPath],Value,Target)
+    end;
+'_fmask'([null|Path],RevPath,{Source},Target)
+  when is_list(Source) ->
+    Fun = fun({Key,_},Acc) ->
+                  '_fmask'([Key|Path],RevPath,{Source},Acc)
+          end,
+    lists:foldl(Fun,Target,Source);
+'_fmask'([null|Path],RevPath,List,Target)
+  when is_list(List) ->
+    Fun = fun(Value,{TAcc,Count}) ->
+                  {'_fmask'(Path,[Count|RevPath],Value,TAcc),Count+1}
+          end,
+    {NewTarget,_} = lists:foldl(Fun,{Target,0},List),
+    NewTarget;
+'_fmask'([],RevPath,Source,{Target}) ->
+    Path = lists:reverse(RevPath),
+    '_set'(Path,Source,{Target});
+'_fmask'(_,_,_,Target) ->
     Target.
 
 -spec '_fold'(fun((_,_,_) -> any()),_,[any()]) -> any().
