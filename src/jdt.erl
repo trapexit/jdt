@@ -19,9 +19,9 @@
          unset/2,
          unsetn/2,
          get/3,get/2,
-         find/2,
+         search/2,
          mask/2,mask/3,
-         fmask/2,fmask/3,
+         smask/2,smask/3,
          fold/3
         ]).
 
@@ -35,9 +35,9 @@
 -type kv() :: {key(),value()}.
 -type object() :: {[kv()]}.
 -type path() :: [key() | non_neg_integer()].
--type fpath() :: [key() | non_neg_integer() | null].
+-type spath() :: [key() | non_neg_integer() | null].
 
--export_type([key/0,value/0,kv/0,object/0,path/0,fpath/0]).
+-export_type([key/0,value/0,kv/0,object/0,path/0,spath/0]).
 
 %%%===================================================================
 %%% API
@@ -125,9 +125,9 @@ get([],{Proplist}=_JDT,Default)
 get(_,_,_) ->
     erlang:error(badarg).
 
--spec find(fpath(),object()) -> [value()].
-find(Path,JDT) ->
-    '_find'(Path,JDT,[]).
+-spec search(spath(),object()) -> [value()].
+search(Path,JDT) ->
+    '_search'(Path,JDT,[]).
 
 -spec mask([path()],object(),object()) -> object().
 mask([Path|_]=Paths,Source,Target)
@@ -143,16 +143,16 @@ mask(_,_,_) ->
 mask(Path,Source) ->
     mask(Path,Source,new()).
 
--spec fmask(fpath(),object(),object()) -> object().
-fmask(Path,Source,Target)
+-spec smask(spath(),object(),object()) -> object().
+smask(Path,Source,Target)
   when is_list(Path) ->
-    '_fmask'(Path,[],Source,Target);
-fmask(_,_,_) ->
+    '_smask'(Path,[],Source,Target);
+smask(_,_,_) ->
     erlang:error(badarg).
 
--spec fmask(fpath(),object()) -> object().
-fmask(Path,Source) ->
-    fmask(Path,Source,new()).
+-spec smask(spath(),object()) -> object().
+smask(Path,Source) ->
+    smask(Path,Source,new()).
 
 -spec fold(fun((_,_,_) -> any()),any(),object()) -> any().
 fold(Fun,Acc,{Proplist})
@@ -303,24 +303,24 @@ getnth(_N,_L) ->
 '_get'(_,_) ->
     undefined.
 
--spec '_find'(_,_,[any()]) -> [any()].
-'_find'([null|Path],{[{_Key,Value}|List]},Acc) ->
-    NewAcc = '_find'(Path,Value,Acc),
-    '_find'([null|Path],{List},NewAcc);
-'_find'([Key|Path],{Proplist},Acc)
+-spec '_search'(_,_,[any()]) -> [any()].
+'_search'([null|Path],{[{_Key,Value}|List]},Acc) ->
+    NewAcc = '_search'(Path,Value,Acc),
+    '_search'([null|Path],{List},NewAcc);
+'_search'([Key|Path],{Proplist},Acc)
   when is_binary(Key),is_list(Proplist) ->
     case lists:keyfind(Key,1,Proplist) of
         {_,Value} ->
-            '_find'(Path,Value,Acc);
+            '_search'(Path,Value,Acc);
         false ->
             Acc
     end;
-'_find'([Key|Path],List,Acc)
+'_search'([Key|Path],List,Acc)
   when is_integer(Key),is_list(List) ->
-    '_find'(Path,getnth(Key,List),Acc);
-'_find'([],Value,Acc) ->
+    '_search'(Path,getnth(Key,List),Acc);
+'_search'([],Value,Acc) ->
     [Value|Acc];
-'_find'(_,_,Acc) ->
+'_search'(_,_,Acc) ->
     Acc.
 
 -spec '_from_proplist'([atom() | {atom() | binary() | [any()],_}],_) -> any().
@@ -356,40 +356,40 @@ getnth(_N,_L) ->
 '_mask'([],_Source,Target) ->
     Target.
 
--spec '_fmask'(fpath(),list(),_,_) -> object().
-'_fmask'([Key|Path],RevPath,{Source},Target)
+-spec '_smask'(spath(),list(),_,_) -> object().
+'_smask'([Key|Path],RevPath,{Source},Target)
   when is_binary(Key),is_list(Source) ->
     case lists:keyfind(Key,1,Source) of
         {_,Value} ->
-            '_fmask'(Path,[Key|RevPath],Value,Target);
+            '_smask'(Path,[Key|RevPath],Value,Target);
         false ->
             Target
     end;
-'_fmask'([Key|Path],RevPath,Source,Target)
+'_smask'([Key|Path],RevPath,Source,Target)
   when is_integer(Key),is_list(Source) ->
     case getnth(Key,Source) of
         undefined ->
             Target;
         Value ->
-            '_fmask'(Path,[Key|RevPath],Value,Target)
+            '_smask'(Path,[Key|RevPath],Value,Target)
     end;
-'_fmask'([null|Path],RevPath,{Source},Target)
+'_smask'([null|Path],RevPath,{Source},Target)
   when is_list(Source) ->
     Fun = fun({Key,_},Acc) ->
-                  '_fmask'([Key|Path],RevPath,{Source},Acc)
+                  '_smask'([Key|Path],RevPath,{Source},Acc)
           end,
     lists:foldl(Fun,Target,Source);
-'_fmask'([null|Path],RevPath,List,Target)
+'_smask'([null|Path],RevPath,List,Target)
   when is_list(List) ->
     Fun = fun(Value,{TAcc,Count}) ->
-                  {'_fmask'(Path,[Count|RevPath],Value,TAcc),Count+1}
+                  {'_smask'(Path,[Count|RevPath],Value,TAcc),Count+1}
           end,
     {NewTarget,_} = lists:foldl(Fun,{Target,0},List),
     NewTarget;
-'_fmask'([],RevPath,Source,{Target}) ->
+'_smask'([],RevPath,Source,{Target}) ->
     Path = lists:reverse(RevPath),
     '_set'(Path,Source,{Target});
-'_fmask'(_,_,_,Target) ->
+'_smask'(_,_,_,Target) ->
     Target.
 
 -spec '_fold'(fun((_,_,_) -> any()),_,[any()]) -> any().
